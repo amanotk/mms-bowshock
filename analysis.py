@@ -12,7 +12,7 @@ import pandas as pd
 import xarray as xr
 
 import pytplot
-from aspy import set_plot_option, create_xarray
+from utils import set_plot_option, create_xarray
 
 JSON_FILENAME = "shockgeometry.json"
 WAVE_FILENAME = "burstwave_{:s}.h5"
@@ -214,7 +214,7 @@ def plot_timeseries(json_data, sc, suffix, t, x):
     import matplotlib as mpl
     from matplotlib import pylab as plt
     import pytplot
-    from aspy import set_plot_option
+    from utils import set_plot_option
 
     ID = json_data["ID"]
     B0 = json_data["B0"]
@@ -338,7 +338,7 @@ if __name__ == "__main__":
             csv = pd.read_csv(target, header=None, skiprows=1)
             tr1 = pd.to_datetime(csv.iloc[:, 0])
             tr2 = pd.to_datetime(csv.iloc[:, 1])
-            for (t1, t2) in zip(tr1, tr2):
+            for t1, t2 in zip(tr1, tr2):
                 try:
                     dirname = t1.strftime(DIR_FMT) + "-" + t2.strftime(DIR_FMT)
                     doit(dirname, suffix, threshold)

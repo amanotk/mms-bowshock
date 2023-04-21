@@ -31,7 +31,7 @@ import numpy as np
 import pandas as pd
 
 DIR_FMT = "%Y%m%d_%H%M%S"
-JSON_FILENAME = "shockgeometry.json"
+JSON_FILENAME = "shockgeometry_mms{:1d}.json"
 
 
 def sph2xyz(r, t, p, degree=True):
@@ -120,7 +120,7 @@ class AY76Analyzer:
         Bl2 = np.sum(B2 * lvec, axis=-1)
         Un1 = np.sum(U1 * nvec, axis=-1)
         Un2 = np.sum(U2 * nvec, axis=-1)
-        Vs  = (Un2*Bl2 - Un1*Bl1) / (Bl2 - Bl1)
+        Vs = (Un2 * Bl2 - Un1 * Bl1) / (Bl2 - Bl1)
 
         return lvec, mvec, nvec, Vs
 
@@ -222,7 +222,10 @@ class AY76Analyzer:
         # store result
         result = dict(
             analyzer=dict(
-                name="AY76", window=self.window, deltat=int(self.deltat / np.timedelta64(1, "s"))
+                name="AY76",
+                sc=data_dict["sc"],
+                window=self.window,
+                deltat=int(self.deltat / np.timedelta64(1, "s")),
             ),
             quality=quality,
             l_index=l_index,
@@ -238,22 +241,22 @@ class AY76Analyzer:
             error_vshn=error_vshn,
         )
 
+        # calculate and save parameters
+        parameters = save_parameters(data_dict, result, dirname)
+
         # summary plot with LMN coordinate in NIF for visual inspection
         t1 = pd.to_datetime(tl1) - np.timedelta64(1, "m")
         t2 = pd.to_datetime(tr2) + np.timedelta64(1, "m")
-        plot_summary_lmn([t1, t2], data_dict, result, dirname)
-
-        # calculate and save parameters
-        result = save_parameters(data_dict, result, dirname)
+        plot_summary_lmn([t1, t2], data_dict, result, parameters, dirname)
 
         return result
 
 
-def plot_summary_lmn(trange, data_dict, result, dirname):
+def plot_summary_lmn(trange, data_dict, result, parameters, dirname):
     import matplotlib as mpl
     from matplotlib import pylab as plt
     import pytplot
-    import aspy
+    import utils
 
     lvec = result["lvec"]
     mvec = result["mvec"]
@@ -261,6 +264,7 @@ def plot_summary_lmn(trange, data_dict, result, dirname):
     LMN = np.vstack([lvec, mvec, nvec])[None, :, :]
     Vshock = result["Vshock"]
 
+    sc = data_dict["sc"]
     ne = data_dict["ne"].values
     ni = data_dict["ni"].values
     bf = data_dict["bf"].values
@@ -280,28 +284,28 @@ def plot_summary_lmn(trange, data_dict, result, dirname):
     pytplot.store_data("vi_lmn", data=dict(x=tt, y=vi_lmn))
 
     # set plot options
-    aspy.set_plot_option(
+    utils.set_plot_option(
         pytplot.data_quants["density"],
         ylabel=r"N [1/cm$^3$]",
         legend=("Ni", "Ne"),
         line_color=("r", "b"),
         char_size=10,
     )
-    aspy.set_plot_option(
+    utils.set_plot_option(
         pytplot.data_quants["bf_lmn"],
         ylabel="B [nT]",
         legend=("L", "M", "N"),
         line_color=("b", "g", "r"),
         char_size=10,
     )
-    aspy.set_plot_option(
+    utils.set_plot_option(
         pytplot.data_quants["ef_lmn"],
         ylabel="E [mV/m]",
         legend=("L", "M", "N"),
         line_color=("b", "g", "r"),
         char_size=10,
     )
-    aspy.set_plot_option(
+    utils.set_plot_option(
         pytplot.data_quants["vi_lmn"],
         ylabel="V [km/s]",
         legend=("L", "M", "N"),
@@ -324,11 +328,16 @@ def plot_summary_lmn(trange, data_dict, result, dirname):
     ryrange = [1.0, 1.0]
     tc = result["c_trange"][0] + 0.5 * (result["c_trange"][1] - result["c_trange"][0])
     title = pd.to_datetime(tc).strftime(
-        "MMS Bow Shock at %Y-%m-%d %H:%M:%S (Normal Incidence Frame)"
+        "MMS{:1d} Bow Shock at %Y-%m-%d %H:%M:%S (Normal Incidence Frame)".format(sc)
     )
+    title += "\n"
+    title += r"$M_{{A}}$ = {:7.3f} $\pm$ {:5.3f}; ".format(*parameters["Ma_nif_i"])
+    title += r"$\cos \theta_{{Bn}}$ = {:7.3f} +- {:5.3f}; ".format(*parameters["cos_tbn"])
+    title += r"$|B_0|$ = {:7.3f} +- {:5.3f}; ".format(*parameters["Bt1"])
+
     fig = plt.gcf()
     fig.subplots_adjust(left=0.15, right=0.85, top=0.95, bottom=0.15)
-    fig.suptitle(title, fontsize=10)
+    fig.suptitle(title, fontsize=10, x=0.5, y=1.0)
 
     axs = fig.get_axes()
     for ax in axs:
@@ -346,7 +355,7 @@ def plot_summary_lmn(trange, data_dict, result, dirname):
     ax.set_xlabel("UT")
 
     # save file
-    fig.savefig(os.sep.join([dirname, "summary_lmn_nif.png"]))
+    fig.savefig(os.sep.join([dirname, "summary_lmn_nif_mms{:1d}.png".format(sc)]))
 
 
 def save_parameters(data_dict, result, dirname):
@@ -354,6 +363,7 @@ def save_parameters(data_dict, result, dirname):
     import pyspedas
     import pytplot
 
+    sc = data_dict["sc"]
     Ne = data_dict["ne"]
     Ni = data_dict["ni"]
     Ue = data_dict["ve"]
@@ -419,8 +429,8 @@ def save_parameters(data_dict, result, dirname):
     theta_bn_err = result["error_nvec"]
     cos_tbn = Bn1 / Bt1
     cos_tbn_err = np.sqrt(
-        (1-cos_tbn**2) * np.deg2rad(theta_bn_err)**2 +
-        np.dot(Bf1_err/Bt1, nvec)**2)
+        (1 - cos_tbn**2) * np.deg2rad(theta_bn_err) ** 2 + np.dot(Bf1_err / Bt1, nvec) ** 2
+    )
 
     # shock speed
     Vs_n_scf = Vshock[2]
@@ -439,10 +449,12 @@ def save_parameters(data_dict, result, dirname):
     Vs_err = Vs_n_scf_err
     Ma_nif_i = 4.586e-2 * Vs_abs * np.sqrt(Ni1_avg) / Bt1
     Ma_nif_i_err = Ma_nif_i * np.sqrt(
-        (Vs_err/Vs_abs)**2 + (Bt1_err/Bt1)**2 + 0.25*(Ni1_err/Ni1_avg)**2)
+        (Vs_err / Vs_abs) ** 2 + (Bt1_err / Bt1) ** 2 + 0.25 * (Ni1_err / Ni1_avg) ** 2
+    )
     Ma_nif_e = 4.586e-2 * Vs_abs * np.sqrt(Ne1_avg) / Bt1
     Ma_nif_e_err = Ma_nif_e * np.sqrt(
-        (Vs_err/Vs_abs)**2 + (Bt1_err/Bt1)**2 + 0.25*(Ne1_err/Ne1_avg)**2)
+        (Vs_err / Vs_abs) ** 2 + (Bt1_err / Bt1) ** 2 + 0.25 * (Ne1_err / Ne1_avg) ** 2
+    )
 
     # pressure plasma beta
     Pb = (np.linalg.norm(Bf1_avg) ** 2 / (2 * constants.mu_0)) * 1e-9
@@ -463,7 +475,6 @@ def save_parameters(data_dict, result, dirname):
     parameters = {
         "analyzer": result["analyzer"],
         "quality": result["quality"],
-        "available_sc": data_dict["available"],
         "trange": list(trange),
         "trange1": list(trange1),
         "trange2": list(trange2),
@@ -544,15 +555,15 @@ def save_parameters(data_dict, result, dirname):
         else:
             print("{:20s} : {:10.4f}".format(key, +parameters[key]))
 
-    with open(os.sep.join([dirname, JSON_FILENAME]), "w") as fp:
+    with open(os.sep.join([dirname, JSON_FILENAME.format(sc)]), "w") as fp:
         fp.write(json.dumps(parameters, indent=4))
 
-    return result
+    return parameters
 
 
 def preprocess():
     import pytplot
-    import aspy
+    import utils
 
     vardict = pytplot.data_quants
     Bf = [0] * 4
@@ -575,7 +586,6 @@ def preprocess():
     #
     # (1) downsample magnetic field
     # (2) interpolate moment quantities
-    # (3) average over four spacecraft
     #
     dt = 4.5 * 1.0e9
     tt = Bf[0].time.values
@@ -583,54 +593,32 @@ def preprocess():
     tb = np.arange(nn) * dt + tt[0]
     tc = tb[:-1] + 0.5 * (tb[+1:] - tb[:-1])
 
-    bf = aspy.create_xarray(x=tc, y=np.zeros((tc.size, 3)))
-    ni = aspy.create_xarray(x=tc, y=np.zeros((tc.size,)))
-    ne = aspy.create_xarray(x=tc, y=np.zeros((tc.size,)))
-    vi = aspy.create_xarray(x=tc, y=np.zeros((tc.size, 3)))
-    ve = aspy.create_xarray(x=tc, y=np.zeros((tc.size, 3)))
-    pi = aspy.create_xarray(x=tc, y=np.zeros((tc.size,)))
-    pe = aspy.create_xarray(x=tc, y=np.zeros((tc.size,)))
-
-    weights = np.ones((4,))
-    sc = [True]*4
-    sc_bf = [0]*4
-    sc_ni = [0]*4
-    sc_ne = [0]*4
-    sc_vi = [0]*4
-    sc_ve = [0]*4
-    sc_pi = [0]*4
-    sc_pe = [0]*4
+    data = [0] * 4
     for i in range(4):
-        sc_bf[i] = Bf[i].groupby_bins("time", tb).mean().values[:, 0:3]
-        sc_ni[i] = Ni[i].interp(time=tc).values
-        sc_ne[i] = Ne[i].interp(time=tc).values
-        sc_vi[i] = Vi[i].interp(time=tc).values
-        sc_ve[i] = Ve[i].interp(time=tc).values
-        sc_pi[i] = np.trace(Pi[i].interp(time=tc).values, axis1=1, axis2=2) / 3
-        sc_pe[i] = np.trace(Pe[i].interp(time=tc).values, axis1=1, axis2=2) / 3
+        sc = i + 1
+        bf = utils.create_xarray(x=tc, y=np.zeros((tc.size, 3)))
+        ni = utils.create_xarray(x=tc, y=np.zeros((tc.size,)))
+        ne = utils.create_xarray(x=tc, y=np.zeros((tc.size,)))
+        vi = utils.create_xarray(x=tc, y=np.zeros((tc.size, 3)))
+        ve = utils.create_xarray(x=tc, y=np.zeros((tc.size, 3)))
+        pi = utils.create_xarray(x=tc, y=np.zeros((tc.size,)))
+        pe = utils.create_xarray(x=tc, y=np.zeros((tc.size,)))
+        bf[...] = Bf[i].groupby_bins("time", tb).mean().values[:, 0:3]
+        ni[...] = Ni[i].interp(time=tc).values
+        ne[...] = Ne[i].interp(time=tc).values
+        vi[...] = Vi[i].interp(time=tc).values
+        ve[...] = Ve[i].interp(time=tc).values
+        pi[...] = np.trace(Pi[i].interp(time=tc).values, axis1=1, axis2=2) / 3
+        pe[...] = np.trace(Pe[i].interp(time=tc).values, axis1=1, axis2=2) / 3
         # ignore if NaN is detected in any elements except for first and last
-        for x in sc_bf[i], sc_ni[i], sc_ne[i], sc_vi[i], sc_ve[i], sc_pi[i], sc_pe[i]:
+        for x in bf, ni, ne, vi, ve, pi, pe:
             if np.any(np.isnan(x[+1:-1])) == True:
-                sc[i] = False
-                weights[i] = 0.0
+                available = False
             else:
-                weights[i] = 1.0
+                available = True
+        data[i] = dict(bf=bf, ni=ni, ne=ne, vi=vi, ve=ve, pi=pi, pe=pe, sc=sc, available=available)
 
-    # take average over S/C
-    weights = weights / np.sum(weights)
-    for i in range(4):
-        if sc[i]:
-            bf += weights[i] * sc_bf[i]
-            ni += weights[i] * sc_ni[i]
-            ne += weights[i] * sc_ne[i]
-            vi += weights[i] * sc_vi[i]
-            ve += weights[i] * sc_ve[i]
-            pi += weights[i] * sc_pi[i]
-            pe += weights[i] * sc_pe[i]
-        else:
-            print('Data for MMS{:1d} is not available'.format(i+1))
-
-    return dict(bf=bf, ni=ni, ne=ne, vi=vi, ve=ve, pi=pi, pe=pe, available=sc)
+    return data
 
 
 def analyze_interval(trange, analyzer, dirname, quality=1):
@@ -650,7 +638,11 @@ def analyze_interval(trange, analyzer, dirname, quality=1):
     data_dict = preprocess()
 
     ## try to determine shock parameters
-    result = analyzer(trange, data_dict, dirname, quality)
+    for i in range(4):
+        if data_dict[i]["available"]:
+            result = analyzer(trange, data_dict[i], dirname, quality)
+        else:
+            print("MMS{:1d} data is not available for analysis".format(i + 1))
 
     ## clear
     pytplot.del_data()
@@ -680,8 +672,17 @@ def json2dict(js, ID):
         d["{}.z".format(key)] = js[key][2]
 
     # add arbitrary parameters
-    ignore_keys = ("trange", "trange1", "trange2", "lvec", "mvec", "nvec",
-        "analyzer", "quality", "available_sc")
+    ignore_keys = (
+        "trange",
+        "trange1",
+        "trange2",
+        "lvec",
+        "mvec",
+        "nvec",
+        "analyzer",
+        "quality",
+        "sc",
+    )
     for key in js.keys():
         if key in ignore_keys:
             continue
@@ -692,8 +693,6 @@ def json2dict(js, ID):
     # meta data
     for key, item in js["analyzer"].items():
         d["analyzer.{}".format(key)] = item
-    for i in range(4):
-        d["MMS{:1d}".format(i+1)] = 1 if js["available_sc"][i] == True else 0
 
     return d
 
@@ -745,10 +744,10 @@ if __name__ == "__main__":
             #
             tr1, tr2 = download.read_eventlist(target)
             csv = pd.read_csv(target, header=None, skiprows=1)
-            tr1 = pd.to_datetime(csv.iloc[:,0])
-            tr2 = pd.to_datetime(csv.iloc[:,1])
-            quality = csv.iloc[:,2]
-            for (t1, t2, q) in zip(tr1, tr2, quality):
+            tr1 = pd.to_datetime(csv.iloc[:, 0])
+            tr2 = pd.to_datetime(csv.iloc[:, 1])
+            quality = csv.iloc[:, 2]
+            for t1, t2, q in zip(tr1, tr2, quality):
                 try:
                     dirname = t1.strftime(DIR_FMT) + "-" + t2.strftime(DIR_FMT)
                     analyze_interval([t1, t2], analyzer, dirname, q)
@@ -785,7 +784,7 @@ if __name__ == "__main__":
         for target in targetlist:
             fn = os.sep.join([target, JSON_FILENAME])
             if os.path.isfile(fn):
-                with open(fn, 'r') as fp:
+                with open(fn, "r") as fp:
                     js = json.load(fp)
                     dictlist.append(json2dict(js, target))
 

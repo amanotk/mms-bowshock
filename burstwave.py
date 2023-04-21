@@ -9,7 +9,7 @@ import pandas as pd
 import xarray as xr
 
 import pytplot
-from aspy import set_plot_option, create_xarray
+from utils import set_plot_option, create_xarray
 
 DIR_FMT = "%Y%m%d_%H%M%S"
 FGM_FMT = "mms{:1d}_fgm_b_gse_brst_l2"
@@ -151,7 +151,6 @@ def plot_summary(trange, sc, result, dirname, suffix):
     import matplotlib as mpl
     from matplotlib import pylab as plt
     import pytplot
-    from aspy import set_plot_option
 
     fontsize = 16
 
@@ -239,7 +238,7 @@ def plot_summary(trange, sc, result, dirname, suffix):
 
 
 def save_parameters(sc, result, filename):
-    # prepare for saving hdf5a
+    # prepare for saving hdf5
     for key, val in result.items():
         name = "mms{:1d}_{}".format(sc, key)
         if hasattr(val, "name"):  # DataArray object
@@ -411,7 +410,7 @@ if __name__ == "__main__":
             csv = pd.read_csv(target, header=None, skiprows=1)
             tr1 = pd.to_datetime(csv.iloc[:, 0])
             tr2 = pd.to_datetime(csv.iloc[:, 1])
-            for (t1, t2) in zip(tr1, tr2):
+            for t1, t2 in zip(tr1, tr2):
                 try:
                     dirname = t1.strftime(DIR_FMT) + "-" + t2.strftime(DIR_FMT)
                     analyze_interval([t1, t2], analyzer, dirname)

@@ -17,9 +17,9 @@ from scipy import fftpack, signal, ndimage, constants
 import xarray as xr
 import pandas as pd
 
-from aspy import cast_list
-from aspy import set_plot_option
-from aspy import get_default_tplot_attrs
+from utils import cast_list
+from utils import set_plot_option
+from utils import get_default_tplot_attrs
 
 
 def get_default_spectrogram_attrs():
