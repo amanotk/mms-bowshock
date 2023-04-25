@@ -1,3 +1,4 @@
 *.png
 .ipynb_checkpoints
+omni_data
 __pycache__
