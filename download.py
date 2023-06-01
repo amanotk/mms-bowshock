@@ -290,7 +290,7 @@ def load_and_save_brst(tr1, tr2, dirname, force=None):
 
     ## FPI moments
     try:
-        pyspedas.mms.fpi(data_rate="brst", **kwargs)
+        pyspedas.mms.fpi(data_rate="brst", center_measurement=True, **kwargs)
     except Exception as e:
         logmsg += "Failed to load FPI for [{}, {}]".format(t1, t2)
         logmsg += " : " + str(e) + "\n"
