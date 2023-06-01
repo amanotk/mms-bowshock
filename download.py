@@ -191,7 +191,7 @@ def load_and_save_fast(tr1, tr2, dirname, force=None):
     try:
         fmt = "*(numberdensity|bulkv_gse|prestensor_gse|energyspectr_omni)*"
         pyspedas.mms.fpi(
-            data_rate="fast", datatype=["des-moms", "dis-moms"], varformat=fmt, **kwargs
+            data_rate="fast", datatype=["des-moms", "dis-moms"], center_measurement=True, varformat=fmt, **kwargs
         )
     except Exception as e:
         logmsg += "Failed to load FPI for [{}, {}]".format(t1, t2)
