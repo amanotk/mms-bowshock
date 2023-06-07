@@ -7,6 +7,10 @@ import warnings
 import numpy as np
 import pandas as pd
 import xarray as xr
+import matplotlib as mpl
+
+mpl.use("Agg") if __name__ == "__main__" else None
+from matplotlib import pyplot as plt
 
 import pytplot
 from utils import set_plot_option, create_xarray

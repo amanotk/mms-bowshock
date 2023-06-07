@@ -29,6 +29,10 @@ import json
 
 import numpy as np
 import pandas as pd
+import matplotlib as mpl
+
+mpl.use("Agg") if __name__ == "__main__" else None
+from matplotlib import pyplot as plt
 
 DIR_FMT = "%Y%m%d_%H%M%S"
 JSON_FILENAME = "shockgeometry_mms{:1d}.json"
@@ -352,7 +356,7 @@ def plot_summary_lmn(trange, data_dict, result, parameters, dirname):
         ax.xaxis.set_major_formatter(mpl.dates.DateFormatter("%H:%M"))
         ax.xaxis.set_major_locator(mpl.dates.MinuteLocator())
         ax.xaxis.set_minor_locator(mpl.dates.SecondLocator(bysecond=range(0, 60, 10)))
-    ax.set_xlabel("UT")
+    axs[-1].set_xlabel("UT")
 
     # save file
     fig.savefig(os.sep.join([dirname, "summary_lmn_nif_mms{:1d}.png".format(sc)]))

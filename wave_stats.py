@@ -10,11 +10,15 @@ import scipy as sp
 from scipy import signal
 import pandas as pd
 import xarray as xr
+import matplotlib as mpl
+
+mpl.use("Agg") if __name__ == "__main__" else None
+from matplotlib import pyplot as plt
 
 import pytplot
 from utils import set_plot_option, create_xarray
 
-JSON_FILENAME = "shockgeometry.json"
+JSON_FILENAME = "shockgeometry_mms{:1d}.json"
 WAVE_FILENAME = "burstwave_{:s}.h5"
 TSERIES_FILENAME = "tseries_{:s}_mms{:1d}.png"
 SCATTER_FILENAME = "scatter_{:s}_mms{:1d}.png"
@@ -29,8 +33,9 @@ POWER_FMT = "mms{:1d}_power"
 fmin = [0.05, 0.10, 0.20]
 
 
-def read_json(dirname):
-    with open(os.sep.join([dirname, JSON_FILENAME]), "r") as fp:
+def read_json(dirname, sc):
+    filename = os.sep.join([dirname, JSON_FILENAME.format(sc)])
+    with open(filename, "r") as fp:
         json_data = json.load(fp)
         json_data["ID"] = dirname
         json_data["B0"] = json_data["Bt1"][0]
@@ -291,9 +296,8 @@ def plot_timeseries(json_data, sc, suffix, t, x):
 
 
 def doit(dirname, suffix, threshold):
-    json_data = read_json(dirname)
-
     for sc in [1, 2, 3, 4]:
+        json_data = read_json(dirname, sc)
         print("{:s} : MMS{:1d}".format(dirname, sc))
         t, x, y = gather_transition_layer(json_data, sc=sc, threshold=threshold, suffix=suffix)
         plot_scatter(json_data, sc, suffix, x, y)
@@ -316,7 +320,7 @@ if __name__ == "__main__":
         "--suffix",
         dest="suffix",
         type=str,
-        default="2048",
+        required=True,
         help="suffix for output filename",
     )
     args = parser.parse_args()
