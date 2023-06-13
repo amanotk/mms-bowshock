@@ -1,9 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import warnings
+
+warnings.resetwarnings()
+warnings.simplefilter("ignore", FutureWarning)
+warnings.simplefilter("ignore", DeprecationWarning)
+
 import os
 import warnings
 import json
+import itertools
 
 import numpy as np
 import scipy as sp
@@ -20,6 +27,7 @@ from utils import set_plot_option, create_xarray
 
 JSON_FILENAME = "shockgeometry_mms{:1d}.json"
 WAVE_FILENAME = "burstwave_{:s}.h5"
+CSV_FILENAME = "wavestats_{:s}_mms{:1d}.csv"
 TSERIES_FILENAME = "tseries_{:s}_mms{:1d}.png"
 SCATTER_FILENAME = "scatter_{:s}_mms{:1d}.png"
 DIR_FMT = "%Y%m%d_%H%M%S"
@@ -31,6 +39,7 @@ POWER_FMT = "mms{:1d}_power"
 
 # minimum frequency for integration
 fmin = [0.05, 0.10, 0.20]
+fce0 = 27.99
 
 
 def read_json(dirname, sc):
@@ -295,19 +304,99 @@ def plot_timeseries(json_data, sc, suffix, t, x):
     plt.close(fig)
 
 
-def doit(dirname, suffix, threshold):
-    for sc in [1, 2, 3, 4]:
-        json_data = read_json(dirname, sc)
-        print("{:s} : MMS{:1d}".format(dirname, sc))
-        t, x, y = gather_transition_layer(json_data, sc=sc, threshold=threshold, suffix=suffix)
-        plot_scatter(json_data, sc, suffix, x, y)
-        plot_timeseries(json_data, sc, suffix, t, x)
+def check_consistency(dirname, suffix, quality):
+    # check quality
+    status = True and quality == 1
+    if status == False:
+        return status
+
+    fn_js1 = os.sep.join([dirname, JSON_FILENAME.format(1)])
+    fn_js2 = os.sep.join([dirname, JSON_FILENAME.format(2)])
+    fn_js3 = os.sep.join([dirname, JSON_FILENAME.format(3)])
+    fn_js4 = os.sep.join([dirname, JSON_FILENAME.format(4)])
+    fn_brst = os.sep.join([dirname, WAVE_FILENAME.format(suffix)])
+
+    # check if all files exist
+    fn_list = [fn_js1, fn_js2, fn_js3, fn_js4, fn_brst]
+    status = status and np.alltrue(np.array([os.path.isfile(fn) for fn in fn_list]))
+    if status == False:
+        return status
+
+    # check parameter consistency
+    js = [0] * 4
+    for i, fn in enumerate([fn_js1, fn_js2, fn_js3, fn_js4]):
+        with open(fn, "r") as fp:
+            js[i] = json.load(fp)
+
+    for jsa, jsb in itertools.product(js, js):
+        Ma_nif_i_val_a = jsa["Ma_nif_i"][0]
+        Ma_nif_i_err_a = jsa["Ma_nif_i"][1]
+        Ma_nif_i_val_b = jsb["Ma_nif_i"][0]
+        Ma_nif_i_err_b = jsb["Ma_nif_i"][1]
+        cos_tbn_val_a = jsa["cos_tbn"][0]
+        cos_tbn_err_a = jsa["cos_tbn"][1]
+        cos_tbn_val_b = jsb["cos_tbn"][0]
+        cos_tbn_err_b = jsb["cos_tbn"][1]
+        Ma_min = min(Ma_nif_i_val_a + Ma_nif_i_err_a, Ma_nif_i_val_b + Ma_nif_i_err_b)
+        Ma_max = max(Ma_nif_i_val_a - Ma_nif_i_err_a, Ma_nif_i_val_b - Ma_nif_i_err_b)
+        Tb_min = min(cos_tbn_val_a + cos_tbn_err_a, cos_tbn_val_b + cos_tbn_err_b)
+        Tb_max = max(cos_tbn_val_a - cos_tbn_err_a, cos_tbn_val_b - cos_tbn_err_b)
+        status = status and (Ma_min >= Ma_max) and (Tb_min >= Tb_max)
+
+    return status
+
+
+def doit(dirname, sc, suffix, threshold, quality=1):
+    json_data = read_json(dirname, sc)
+    print("{:s} : MMS{:1d}".format(dirname, sc))
+    t, x, y = gather_transition_layer(json_data, sc=sc, threshold=threshold, suffix=suffix)
+    plot_scatter(json_data, sc, suffix, x, y)
+    plot_timeseries(json_data, sc, suffix, t, x)
+
+    # store data
+    data = dict()
+    exclude_keys = [
+        "analyzer",
+        "quality",
+        "trange",
+        "trange1",
+        "trange2",
+        "lvec",
+        "mvec",
+        "nvec",
+        "B0",
+        "ID",
+        "is_inbound",
+    ]
+    if check_consistency(dirname, suffix, quality):
+        # parameters
+        data["label"] = dirname
+        for key in json_data.keys():
+            if key not in exclude_keys:
+                data["{}_avg".format(key)] = json_data[key][0]
+                data["{}_err".format(key)] = json_data[key][1]
+        # store wave power
+        B0 = json_data["B0"]
+        xx = np.quantile(x * B0 * fce0, [0.25, 0.75, 0.50], axis=0)
+        data["fce_med"] = xx[2]
+        data["fce_min"] = xx[0]
+        data["fce_max"] = xx[1]
+        yval, yerr = get_val_err(y)
+        for i, f in enumerate(fmin):
+            data["fmin{:1d}".format(i)] = f
+            data["wavepow{:1d}_med".format(i)] = yval[i]
+            data["wavepow{:1d}_min".format(i)] = yerr[0, i]
+            data["wavepow{:1d}_max".format(i)] = yerr[1, i]
+
+        return data
+    else:
+        return None
 
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Bust Wave Analysis Tool for MMS")
+    parser = argparse.ArgumentParser(description="Bust Wave Statistical Analysis Tool for MMS")
     parser.add_argument("target", nargs="+", type=str, help="target file or directory")
     parser.add_argument(
         "--threshold",
@@ -333,6 +422,8 @@ if __name__ == "__main__":
     ###
     import download
 
+    datalist = [[], [], [], []]
+
     for target in args.target:
         if os.path.isfile(target):
             #
@@ -342,10 +433,14 @@ if __name__ == "__main__":
             csv = pd.read_csv(target, header=None, skiprows=1)
             tr1 = pd.to_datetime(csv.iloc[:, 0])
             tr2 = pd.to_datetime(csv.iloc[:, 1])
-            for t1, t2 in zip(tr1, tr2):
+            quality = csv.iloc[:, 2]
+            for i, (t1, t2) in enumerate(zip(tr1, tr2)):
                 try:
                     dirname = t1.strftime(DIR_FMT) + "-" + t2.strftime(DIR_FMT)
-                    doit(dirname, suffix, threshold)
+                    for sc in [1, 2, 3, 4]:
+                        data = doit(dirname, sc, suffix, threshold, quality[i])
+                        if data is not None:
+                            datalist[sc - 1].append(data)
                 except Exception as e:
                     print(e)
                     print("Error: perhaps unrecognized directory format?")
@@ -368,3 +463,15 @@ if __name__ == "__main__":
 
         else:
             print("Error: {} is not a file or directory".format(target))
+
+    # save results
+    for sc in [1, 2, 3, 4]:
+        with open(CSV_FILENAME.format(suffix, sc), "w") as fp:
+            keys = list(datalist[sc - 1][0].keys())
+            header = "# " + ",".join(keys) + "\n"
+            fp.write(header)
+            for d in datalist[sc - 1]:
+                fp.write("{}".format(d[keys[0]]))
+                for key in keys[1:]:
+                    fp.write(",{}".format(d[key]))
+                fp.write("\n")
