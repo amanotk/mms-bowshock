@@ -122,9 +122,15 @@ class AY76Analyzer:
         # Vs : shock speed in s/c frame
         Bl1 = np.sum(B1 * lvec, axis=-1)
         Bl2 = np.sum(B2 * lvec, axis=-1)
+        Bn1 = np.sum(B1 * nvec, axis=-1)
+        Bn2 = np.sum(B2 * nvec, axis=-1)
+        Ul1 = np.sum(U1 * lvec, axis=-1)
+        Ul2 = np.sum(U2 * lvec, axis=-1)
         Un1 = np.sum(U1 * nvec, axis=-1)
         Un2 = np.sum(U2 * nvec, axis=-1)
-        Vs = (Un2 * Bl2 - Un1 * Bl1) / (Bl2 - Bl1)
+        Em1 = -(Un1 * Bl1 - Ul1 * Bn1)
+        Em2 = -(Un2 * Bl2 - Ul2 * Bn2)
+        Vs = -(Em2 - Em1) / (Bl2 - Bl1)
 
         return lvec, mvec, nvec, Vs
 
