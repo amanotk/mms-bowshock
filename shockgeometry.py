@@ -257,9 +257,9 @@ class AY76Analyzer:
         # summary plot with LMN coordinate in NIF for visual inspection
         t1 = pd.to_datetime(tl1) - np.timedelta64(1, "m")
         t2 = pd.to_datetime(tr2) + np.timedelta64(1, "m")
-        plot_summary_lmn([t1, t2], data_dict, result, parameters, dirname)
+        figure = plot_summary_lmn([t1, t2], data_dict, result, parameters, dirname)
 
-        return result
+        return result, figure
 
 
 def plot_summary_lmn(trange, data_dict, result, parameters, dirname):
@@ -323,12 +323,19 @@ def plot_summary_lmn(trange, data_dict, result, parameters, dirname):
         char_size=10,
     )
 
+    # figure
+    npanels = 4
+    fig, axs = plt.subplots(
+        nrows=npanels, sharex=True, gridspec_kw={"height_ratios": npanels * [1]}
+    )
+    fig.set_size_inches(8, 8)
+
     # suppress UserWarning in agg backend
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         pytplot.tlimit([t.strftime("%Y-%m-%d %H:%M:%S") for t in trange])
-        pytplot.tplot_options("axis_font_size", 10)
-        pytplot.tplot(["density", "bf_lmn", "vi_lmn", "ef_lmn"], xsize=8, ysize=8)
+        pytplot.tplot_options("axis_font_size", 12)
+        pytplot.tplot(["density", "bf_lmn", "vi_lmn", "ef_lmn"], fig=fig, axis=axs)
 
     # customize appearance
     lxrange = [result["l_trange"][0], result["l_trange"][1]]
@@ -345,11 +352,10 @@ def plot_summary_lmn(trange, data_dict, result, parameters, dirname):
     title += r"$\cos \theta_{{Bn}}$ = {:7.3f} +- {:5.3f}; ".format(*parameters["cos_tbn"])
     title += r"$|B_0|$ = {:7.3f} +- {:5.3f}; ".format(*parameters["Bt1"])
 
-    fig = plt.gcf()
-    fig.subplots_adjust(left=0.15, right=0.85, top=0.95, bottom=0.15)
-    fig.suptitle(title, fontsize=10, x=0.5, y=1.0)
+    # fig = plt.gcf()
+    fig.subplots_adjust(left=0.12, right=0.88, top=0.93, bottom=0.08)
+    fig.suptitle(title, fontsize=12, x=0.5, y=0.98)
 
-    axs = fig.get_axes()
     for ax in axs:
         plt.sca(ax)
         plt.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0))
@@ -363,9 +369,9 @@ def plot_summary_lmn(trange, data_dict, result, parameters, dirname):
         ax.xaxis.set_major_locator(mpl.dates.MinuteLocator())
         ax.xaxis.set_minor_locator(mpl.dates.SecondLocator(bysecond=range(0, 60, 10)))
     axs[-1].set_xlabel("UT")
+    fig.align_ylabels(axs)
 
-    # save file
-    fig.savefig(os.sep.join([dirname, "summary_lmn_nif_mms{:1d}.png".format(sc)]))
+    return fig
 
 
 def save_parameters(data_dict, result, dirname):
@@ -650,7 +656,9 @@ def analyze_interval(trange, analyzer, dirname, quality=1):
     ## try to determine shock parameters
     for i in range(4):
         if data_dict[i]["available"]:
-            result = analyzer(trange, data_dict[i], dirname, quality)
+            result, figure = analyzer(trange, data_dict[i], dirname, quality)
+            sc = data_dict[i]["sc"]
+            figure.savefig(os.sep.join([dirname, "summary_lmn_nif_mms{:1d}.pdf".format(sc)]))
         else:
             print("MMS{:1d} data is not available for analysis".format(i + 1))
 
