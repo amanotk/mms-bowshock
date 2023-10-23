@@ -349,8 +349,8 @@ def plot_summary_lmn(trange, data_dict, result, parameters, dirname):
     )
     title += "\n"
     title += r"$M_{{A}}$ = {:7.3f} $\pm$ {:5.3f}; ".format(*parameters["Ma_nif_i"])
-    title += r"$\cos \theta_{{Bn}}$ = {:7.3f} +- {:5.3f}; ".format(*parameters["cos_tbn"])
-    title += r"$|B_0|$ = {:7.3f} +- {:5.3f}; ".format(*parameters["Bt1"])
+    title += r"$\cos \theta_{{Bn}}$ = {:7.3f} $\pm$ {:5.3f}; ".format(*parameters["cos_tbn"])
+    title += r"$|B_0|$ = {:7.3f} $\pm$ {:5.3f}; ".format(*parameters["Bt1"])
 
     # fig = plt.gcf()
     fig.subplots_adjust(left=0.12, right=0.88, top=0.93, bottom=0.08)
@@ -658,7 +658,7 @@ def analyze_interval(trange, analyzer, dirname, quality=1):
         if data_dict[i]["available"]:
             result, figure = analyzer(trange, data_dict[i], dirname, quality)
             sc = data_dict[i]["sc"]
-            figure.savefig(os.sep.join([dirname, "summary_lmn_nif_mms{:1d}.pdf".format(sc)]))
+            figure.savefig(os.sep.join([dirname, "summary_lmn_nif_mms{:1d}.png".format(sc)]))
         else:
             print("MMS{:1d} data is not available for analysis".format(i + 1))
 

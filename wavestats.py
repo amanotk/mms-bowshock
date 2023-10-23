@@ -73,7 +73,7 @@ def read_directory(json_data, sc, suffix):
     fgm = pytplot.data_quants[FGM_FMT.format(sc)]
     fgm = fgm.rolling(time=16, center=True).mean().interp(time=psd.time)
     babs = create_xarray(name="babs_psd", x=fgm.time.values, y=fgm.values[:, 3])
-    set_plot_option(babs, ylabel="|B| / B$_0$", line_color=("k",))
+    set_plot_option(babs, ylabel="|B| [nT]", line_color=("k",))
 
     # store data
     pytplot.data_quants[BABS_FMT.format(sc)] = babs
@@ -172,8 +172,8 @@ def plot_scatter(json_data, sc, suffix, x, y):
     ID = json_data["ID"]
     fontsize = 12
 
-    fig = plt.figure(figsize=(10, 12))
-    fig.subplots_adjust(left=0.15, right=0.85, top=0.95, bottom=0.05, hspace=0.30, wspace=0.35)
+    fig = plt.figure(figsize=(8, 10))
+    fig.subplots_adjust(left=0.10, right=0.95, top=0.93, bottom=0.05, hspace=0.30, wspace=0.40)
     gs = GridSpec(nrows=3, ncols=2, height_ratios=[1, 1, 1])
 
     # title
@@ -192,7 +192,8 @@ def plot_scatter(json_data, sc, suffix, x, y):
         plt.sca(ax1)
         plt.scatter(x, y[:, i], s=10, marker="x", lw=1)
         plt.xlabel(r"|B| / B$_0$")
-        plt.ylabel(r"Power (f$_{{\rm min}}$/f$_{{\rm ce}}$ = {:5.2f})".format(fmin[i]))
+        plt.ylabel(r"Integrated Power [$B_0^2$]")
+        plt.title(r"${:4.2f} \leq f/f_{{\rm ce}} \leq 1.0$".format(fmin[i]))
 
         # hisotgram
         plt.sca(ax2)
@@ -211,7 +212,8 @@ def plot_scatter(json_data, sc, suffix, x, y):
             color="k",
         )
         plt.xlabel(r"Count")
-        plt.ylabel(r"Power (f$_{{\rm min}}$/f$_{{\rm ce}}$ = {:4.2f})".format(fmin[i]))
+        plt.ylabel(r"Integrated Power [$B_0^2$]")
+        plt.title(r"${:4.2f} \leq f/f_{{\rm ce}} \leq 1.0$".format(fmin[i]))
 
         # scale
         for ax in (ax1, ax2):
@@ -219,9 +221,7 @@ def plot_scatter(json_data, sc, suffix, x, y):
             ax.set_yscale("log")
             ax.set_ylim(1e-7, 1e-1)
 
-    # save file and close figure
-    fig.savefig(os.sep.join([ID, SCATTER_FILENAME.format(suffix, sc)]))
-    plt.close(fig)
+    return fig
 
 
 def plot_timeseries(json_data, sc, suffix, t, x):
@@ -247,8 +247,9 @@ def plot_timeseries(json_data, sc, suffix, t, x):
         set_plot_option(pytplot.data_quants[name], fontsize=fontsize)
 
     # figure and axes
-    fig, axs = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+    fig, axs = plt.subplots(3, 1, sharex=True, gridspec_kw={"height_ratios": 3 * [1]})
     fig.subplots_adjust(left=0.05, right=0.80, top=0.95, bottom=0.10, hspace=0.15)
+    fig.set_size_inches(8, 8)
 
     # title
     title = "MMS{:1d} Bow Shock {:s}".format(sc, ID)
@@ -267,8 +268,7 @@ def plot_timeseries(json_data, sc, suffix, t, x):
 
     # power
     plt.sca(axs[1])
-    # plt.legend(loc="upper left", bbox_to_anchor=(1.0, 1.0), fontsize=fontsize)
-    plt.legend(loc="upper right", fontsize=10)
+    plt.legend(loc="upper left", bbox_to_anchor=(1.0, 1.0), fontsize=fontsize)
 
     # spectrogram
     plt.sca(axs[2])
@@ -285,7 +285,7 @@ def plot_timeseries(json_data, sc, suffix, t, x):
         major_locator = mpl.dates.MinuteLocator(byminute=range(0, 60, 1))
         minor_locator = mpl.dates.SecondLocator(bysecond=range(0, 60, 10))
     else:
-        major_locator = mpl.dates.SecondLocator(bysecond=range(0, 60, 10))
+        major_locator = mpl.dates.SecondLocator(bysecond=range(0, 60, 15))
         minor_locator = mpl.dates.SecondLocator(bysecond=range(0, 60, 1))
 
     for ax in axs:
@@ -294,14 +294,18 @@ def plot_timeseries(json_data, sc, suffix, t, x):
         ax.xaxis.set_major_formatter(mpl.dates.DateFormatter("%H:%M:%S"))
         ax.xaxis.set_major_locator(major_locator)
         ax.xaxis.set_minor_locator(minor_locator)
+        ax.set_position(ax.get_position().shrunk(0.85, 1.0))
+    fig.align_ylabels(axs)
+    # color bar
+    cax = fig.get_axes()[-1]
+    bbox = cax.get_position()
+    cax.set_position([bbox.x0 - 0.1, bbox.y0, bbox.width, bbox.height])
 
     axs[1].set_ylim(1e-6, 1e2)
     axs[1].yaxis.set_major_locator(mpl.ticker.LogLocator(base=10, numticks=5))
     axs[-1].set_xlabel("UT", fontsize=fontsize)
 
-    # save file and close figure
-    fig.savefig(os.sep.join([ID, TSERIES_FILENAME.format(suffix, sc)]))
-    plt.close(fig)
+    return fig
 
 
 def check_consistency(dirname, suffix, quality):
@@ -348,10 +352,20 @@ def check_consistency(dirname, suffix, quality):
 
 def doit(dirname, sc, suffix, threshold, quality=1):
     json_data = read_json(dirname, sc)
+    ID = os.path.basename(json_data["ID"])
+
     print("{:s} : MMS{:1d}".format(dirname, sc))
+
+    # save scatter plot
     t, x, y = gather_transition_layer(json_data, sc=sc, threshold=threshold, suffix=suffix)
-    plot_scatter(json_data, sc, suffix, x, y)
-    plot_timeseries(json_data, sc, suffix, t, x)
+    figure = plot_scatter(json_data, sc, suffix, x, y)
+    figure.savefig(os.sep.join([ID, SCATTER_FILENAME.format(suffix, sc)]))
+    plt.close(figure)
+
+    # save timeseries plot
+    figure = plot_timeseries(json_data, sc, suffix, t, x)
+    figure.savefig(os.sep.join([ID, TSERIES_FILENAME.format(suffix, sc)]))
+    plt.close(figure)
 
     # store data
     data = dict()
@@ -456,7 +470,8 @@ if __name__ == "__main__":
                 continue
 
             try:
-                doit(dirname, suffix, threshold)
+                for sc in [1, 2, 3, 4]:
+                    doit(dirname, sc, suffix, threshold, quality=1)
             except Exception as e:
                 print(e)
                 print("Error: perhaps unrecognized directory format?")

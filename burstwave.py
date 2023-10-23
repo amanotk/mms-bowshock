@@ -142,7 +142,7 @@ class WaveAnalyzer:
         legend = [r"f$_{{\rm min}}$/f$_{{\rm ce}}$ = {:4.2f}".format(f) for f in fmin]
         set_plot_option(
             da,
-            ylabel=r"Power [nT$^2$]",
+            ylabel=r"Integrated Power [nT$^2$]",
             ytype="log",
             yrange=[1e-6, 1e-0],
             line_color=("r", "g", "b"),
