@@ -245,10 +245,13 @@ def plot_timeseries(json_data, sc, suffix, t, x):
     ]
     for name in tplot_vars:
         set_plot_option(pytplot.data_quants[name], fontsize=fontsize)
+    # change label
+    psd = pytplot.data_quants[PSD_FMT.format(sc)]
+    psd.plot_options["yaxis_opt"]["axis_label"] = "Frequency [Hz]"
 
     # figure and axes
     fig, axs = plt.subplots(3, 1, sharex=True, gridspec_kw={"height_ratios": 3 * [1]})
-    fig.subplots_adjust(left=0.05, right=0.80, top=0.95, bottom=0.10, hspace=0.15)
+    fig.subplots_adjust(left=0.05, right=0.80, top=0.95, bottom=0.08, hspace=0.15)
     fig.set_size_inches(8, 8)
 
     # title

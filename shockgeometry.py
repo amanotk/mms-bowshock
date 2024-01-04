@@ -352,13 +352,12 @@ def plot_summary_lmn(trange, data_dict, result, parameters, dirname):
     title += r"$\cos \theta_{{Bn}}$ = {:7.3f} $\pm$ {:5.3f}; ".format(*parameters["cos_tbn"])
     title += r"$|B_0|$ = {:7.3f} $\pm$ {:5.3f}; ".format(*parameters["Bt1"])
 
-    # fig = plt.gcf()
     fig.subplots_adjust(left=0.12, right=0.88, top=0.93, bottom=0.08)
     fig.suptitle(title, fontsize=12, x=0.5, y=0.98)
 
     for ax in axs:
         plt.sca(ax)
-        plt.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0))
+        plt.legend(loc="upper left", bbox_to_anchor=(1.0, 1.0))
         plt.grid(True, linestyle="--")
         plt.plot(lxrange, lyrange, color="c", linewidth=10.0, transform=ax.get_xaxis_transform())
         plt.plot(rxrange, ryrange, color="c", linewidth=10.0, transform=ax.get_xaxis_transform())
@@ -736,14 +735,6 @@ if __name__ == "__main__":
         default=90,
         help="time range for the best time interval search in second",
     )
-    parser.add_argument(
-        "-o",
-        "--output",
-        dest="output",
-        type=str,
-        default=None,
-        help="output CSV filename",
-    )
     args = parser.parse_args()
 
     # analyzer
@@ -795,25 +786,3 @@ if __name__ == "__main__":
 
         else:
             print("Error: {} is not a file or directory".format(target))
-
-    # output to CSV file
-    if args.output is not None:
-        dictlist = []
-        for target in targetlist:
-            fn = os.sep.join([target, JSON_FILENAME])
-            if os.path.isfile(fn):
-                with open(fn, "r") as fp:
-                    js = json.load(fp)
-                    dictlist.append(json2dict(js, target))
-
-        try:
-            with open(args.output, "w") as fp:
-                keys = list(dictlist[0].keys())
-                fp.write(",".join(keys) + "\n")
-                for d in dictlist:
-                    fp.write("{}".format(d[keys[0]]))
-                    for key in keys[1:]:
-                        fp.write(",{}".format(d[key]))
-                    fp.write("\n")
-        except Exception as e:
-            print(e)
