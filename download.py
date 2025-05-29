@@ -3,6 +3,7 @@
 
 import os
 import pickle
+import copy
 
 import h5py
 import numpy as np
@@ -431,7 +432,7 @@ def load_and_save_omni(tr1, tr2, dirname, force=None):
     data = list()
     for (old_name, new_name) in mapnames:
         if old_name in pytplot.data_quants:
-            var = pytplot.data_quants[old_name]
+            var = copy.deepcopy(pytplot.data_quants[old_name])
             var.name = new_name
             data.append(var)
 
